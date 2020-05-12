@@ -21,23 +21,29 @@ local function posLimit(pos)
 	}
 end
 
-minetest.register_chatcommand("select_area", {
+local function selectArea(name, param)
+	local id = tonumber(param)
+	if not id then
+		return false, S("Invalid usage, see /help @1.", "select_area")
+	end
+	if not areas.areas[id] then
+		return false, S("The area @1 does not exist.", id)
+	end
+
+	areas:setPos1(name, areas.areas[id].pos1)
+	areas:setPos2(name, areas.areas[id].pos2)
+	return true, S("Area @1 selected.", id)
+end
+
+local chatCommandParams = {
 	params = S("<ID>"),
 	description = S("Select an area by ID."),
-	func = function(name, param)
-		local id = tonumber(param)
-		if not id then
-			return false, S("Invalid usage, see /help @1.", "select_area")
-		end
-		if not areas.areas[id] then
-			return false, S("The area @1 does not exist.", id)
-		end
+	func = selectArea,
+}
 
-		areas:setPos1(name, areas.areas[id].pos1)
-		areas:setPos2(name, areas.areas[id].pos2)
-		return true, S("Area @1 selected.", id)
-	end,
-})
+minetest.register_chatcommand("select_area", chatCommandParams)
+minetest.register_chatcommand("area_select", chatCommandParams)
+
 
 minetest.register_chatcommand("area_pos1", {
 	params = "[X Y Z|X,Y,Z]",

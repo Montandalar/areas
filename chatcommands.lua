@@ -30,208 +30,253 @@ minetest.register_chatcommand("protect", {
 	end
 })
 
+local function setOwner(name, param)
+	local ownerName, areaName = param:match('^(%S+)%s(.+)$')
 
-minetest.register_chatcommand("set_owner", {
+	if not ownerName then
+		return false, S("Invalid usage, see /help @1.", "set_owner")
+	end
+
+	local pos1, pos2 = areas:getPos(name)
+	if not (pos1 and pos2) then
+		return false, S("You need to select an area first.")
+	end
+
+	if not areas:player_exists(ownerName) then
+		return false, S("The player \"@1\" does not exist.", ownerName)
+	end
+
+	minetest.log("action", name.." runs /set_owner. Owner = "..ownerName..
+			" AreaName = "..areaName..
+			" StartPos = "..minetest.pos_to_string(pos1)..
+			" EndPos = "  ..minetest.pos_to_string(pos2))
+
+	local id = areas:add(ownerName, areaName, pos1, pos2, nil)
+	areas:save()
+
+	minetest.chat_send_player(ownerName,
+			S("You have been granted control over area #@1. "..
+			"Type /list_areas to show your areas.", id))
+	return true, S("Area protected. ID: @1", id)
+end
+
+local chatCommandParams = {
 	params = S("<PlayerName>").." "..S("<AreaName>"),
 	description = S("Protect an area between two positions and give"
 		.." a player access to it without setting the parent of the"
 		.." area to any existing area"),
 	privs = areas.adminPrivs,
-	func = function(name, param)
-		local ownerName, areaName = param:match('^(%S+)%s(.+)$')
+	func = setOwner
+}
 
-		if not ownerName then
-			return false, S("Invalid usage, see /help @1.", "set_owner")
-		end
+minetest.register_chatcommand("set_owner", chatCommandParams)
+minetest.register_chatcommand("owner_set", chatCommandParams)
 
-		local pos1, pos2 = areas:getPos(name)
-		if not (pos1 and pos2) then
-			return false, S("You need to select an area first.")
-		end
+local function addOwner(name, param)
+	local pid, ownerName, areaName
+			= param:match('^(%d+) ([^ ]+) (.+)$')
 
-		if not areas:player_exists(ownerName) then
-			return false, S("The player \"@1\" does not exist.", ownerName)
-		end
-
-		minetest.log("action", name.." runs /set_owner. Owner = "..ownerName..
-				" AreaName = "..areaName..
-				" StartPos = "..minetest.pos_to_string(pos1)..
-				" EndPos = "  ..minetest.pos_to_string(pos2))
-
-		local id = areas:add(ownerName, areaName, pos1, pos2, nil)
-		areas:save()
-
-		minetest.chat_send_player(ownerName,
-				S("You have been granted control over area #@1. "..
-				"Type /list_areas to show your areas.", id))
-		return true, S("Area protected. ID: @1", id)
-	end
-})
-
-
-minetest.register_chatcommand("add_owner", {
-	params = S("<ParentID>").." "..S("<PlayerName>").." "..S("<AreaName>"),
-	description = S("Give a player access to a sub-area beetween two"
-		.." positions that have already been protected,"
-		.." Use set_owner if you don't want the parent to be set."),
-	func = function(name, param)
-		local pid, ownerName, areaName
-				= param:match('^(%d+) ([^ ]+) (.+)$')
-
-		if not pid then
-			minetest.chat_send_player(name, S("Invalid usage, see /help @1.", "add_owner"))
-			return
-		end
-
-		local pos1, pos2 = areas:getPos(name)
-		if not (pos1 and pos2) then
-			return false, S("You need to select an area first.")
-		end
-
-		if not areas:player_exists(ownerName) then
-			return false, S("The player \"@1\" does not exist.", ownerName)
-		end
-
-		minetest.log("action", name.." runs /add_owner. Owner = "..ownerName..
-				" AreaName = "..areaName.." ParentID = "..pid..
-				" StartPos = "..pos1.x..","..pos1.y..","..pos1.z..
-				" EndPos = "  ..pos2.x..","..pos2.y..","..pos2.z)
-
-		-- Check if this new area is inside an area owned by the player
+	if not areaName then
+		pid, ownerName = param:match('^(%d+) ([^ ]+)')
 		pid = tonumber(pid)
-		if (not areas:isAreaOwner(pid, name)) or
-		   (not areas:isSubarea(pos1, pos2, pid)) then
-			return false, S("You can't protect that area.")
+		local parentArea = areas.areas[pid]
+		if not parentArea then
+			return false, S("Invalid usage, see /help @1.", "add_owner")
 		end
-
-		local id = areas:add(ownerName, areaName, pos1, pos2, pid)
-		areas:save()
-
-		minetest.chat_send_player(ownerName,
-				S("You have been granted control over area #@1. "..
-				"Type /list_areas to show your areas.", id))
-		return true, S("Area protected. ID: @1", id)
+		areaName = parentArea.name
+		minetest.chat_send_player(name, string.format("Area name not given, defaulting to: %s", areaName))
+	else
+		pid = tonumber(pid)
+		if not areas.areas[pid] then
+			return false, S("The area @1 does not exist (b).", pid)
+		end
 	end
-})
+
+	local pos1, pos2 = areas:getPos(name)
+	if not (pos1 and pos2) then
+		local parentArea = areas.areas[pid]
+		pos1 = parentArea.pos1
+		pos2 = parentArea.pos2
+	end
+
+	if not areas:player_exists(ownerName) then
+		return false, S("The player \"@1\" does not exist.", ownerName)
+	end
+
+	minetest.log("action", name.." runs /add_owner. Owner = "..ownerName..
+			" AreaName = "..areaName.." ParentID = "..pid..
+			" StartPos = "..pos1.x..","..pos1.y..","..pos1.z..
+			" EndPos = "  ..pos2.x..","..pos2.y..","..pos2.z)
+
+	-- Check if this new area is inside an area owned by the player
+	if (not areas:isAreaOwner(pid, name)) or
+	   (not areas:isSubarea(pos1, pos2, pid)) then
+		return false, S("You can't protect that area.")
+	end
+
+	local id = areas:add(ownerName, areaName, pos1, pos2, pid)
+	areas:save()
+
+	minetest.chat_send_player(ownerName,
+			S("You have been granted control over area #@1. "..
+			"Type /list_areas to show your areas.", id))
+	return true, S("Area protected. ID: @1", id)
+end
+
+chatCommandParams = {
+	params = S("<ParentID>").." "..S("<PlayerName>").." "..S("[AreaName]"),
+	description = S("Give a player access to a sub-area between two"
+		.." positions that have already been protected,"
+		.." or the whole area if you have no selection."
+		.." Use set_owner if you don't want the parent to be set."),
+	func = addOwner
+}
+
+minetest.register_chatcommand("add_owner", chatCommandParams)
+minetest.register_chatcommand("owner_add", chatCommandParams)
 
 
-minetest.register_chatcommand("rename_area", {
+local function renameArea(name, param)
+	local id, newName = param:match("^(%d+)%s(.+)$")
+	if not id then
+		return false, S("Invalid usage, see /help @1.", "rename_area")
+	end
+
+	id = tonumber(id)
+	if not id then
+		return false, S("That area doesn't exist.")
+	end
+
+	if not areas:isAreaOwner(id, name) then
+		return true, S("You don't own that area.")
+	end
+
+	areas.areas[id].name = newName
+	areas:save()
+	return true, S("Area renamed.")
+end
+
+chatCommandParams = {
 	params = S("<ID>").." "..S("<newName>"),
 	description = S("Rename an area that you own"),
-	func = function(name, param)
-		local id, newName = param:match("^(%d+)%s(.+)$")
-		if not id then
-			return false, S("Invalid usage, see /help @1.", "rename_area")
-		end
+	func = renameArea
+}
 
-		id = tonumber(id)
-		if not id then
-			return false, S("That area doesn't exist.")
-		end
+minetest.register_chatcommand("rename_area", chatCommandParams)
+minetest.register_chatcommand("area_rename", chatCommandParams)
 
-		if not areas:isAreaOwner(id, name) then
-			return true, S("You don't own that area.")
-		end
-
-		areas.areas[id].name = newName
-		areas:save()
-		return true, S("Area renamed.")
+local function findAreas(name, param)
+	if param == "" then
+		return false, S("A pattern is required.")
 	end
-})
 
+	-- Check expression for validity
+	local function testRegExp()
+		("Test [1]: Player (0,0,0) (0,0,0)"):find(param)
+	end
+	if not pcall(testRegExp) then
+		return false, S("Invalid Lua pattern.")
+	end
 
-minetest.register_chatcommand("find_areas", {
-	params = "<regexp>",
-	description = S("Find areas using a Lua regular expression"),
+	local matches = {}
+	for id, area in pairs(areas.areas) do
+		local str = areas:toString(id)
+		if str:find(param) then
+			table.insert(matches, str)
+		end
+	end
+	if #matches > 0 then
+		return true, table.concat(matches, "\n")
+	else
+		return true, S("No matches found.")
+	end
+end
+
+chatCommandParams = {
+	params = "<pattern>",
+	description = S("Find areas using a Lua pattern match"),
 	privs = areas.adminPrivs,
-	func = function(name, param)
-		if param == "" then
-			return false, S("A regular expression is required.")
-		end
+	func = findAreas
+}
 
-		-- Check expression for validity
-		local function testRegExp()
-			("Test [1]: Player (0,0,0) (0,0,0)"):find(param)
-		end
-		if not pcall(testRegExp) then
-			return false, S("Invalid regular expression.")
-		end
+minetest.register_chatcommand("find_areas", chatCommandParams)
+minetest.register_chatcommand("find_area", chatCommandParams)
+minetest.register_chatcommand("areas_find", chatCommandParams)
+minetest.register_chatcommand("area_find", chatCommandParams)
 
-		local matches = {}
-		for id, area in pairs(areas.areas) do
-			local str = areas:toString(id)
-			if str:find(param) then
-				table.insert(matches, str)
-			end
-		end
-		if #matches > 0 then
-			return true, table.concat(matches, "\n")
-		else
-			return true, S("No matches found.")
+local function listAreas (name, param)
+	local admin = minetest.check_player_privs(name, areas.adminPrivs)
+	local areaStrings = {}
+	for id, area in pairs(areas.areas) do
+		if admin or areas:isAreaOwner(id, name) then
+			table.insert(areaStrings, areas:toString(id))
 		end
 	end
-})
+	if #areaStrings == 0 then
+		return true, S("No visible areas.")
+	end
+	return true, table.concat(areaStrings, "\n")
+end
 
-
-minetest.register_chatcommand("list_areas", {
+chatCommandParams = {
 	description = S("List your areas, or all areas if you are an admin."),
-	func = function(name, param)
-		local admin = minetest.check_player_privs(name, areas.adminPrivs)
-		local areaStrings = {}
-		for id, area in pairs(areas.areas) do
-			if admin or areas:isAreaOwner(id, name) then
-				table.insert(areaStrings, areas:toString(id))
-			end
-		end
-		if #areaStrings == 0 then
-			return true, S("No visible areas.")
-		end
-		return true, table.concat(areaStrings, "\n")
+	func = listAreas
+}
+
+minetest.register_chatcommand("list_areas", chatCommandParams)
+minetest.register_chatcommand("areas_list", chatCommandParams)
+
+local function recursiveRemoveAreas (name, param)
+	local id = tonumber(param)
+	if not id then
+		return false, S("Invalid usage, see"
+				.." /help @1.", "recursive_remove_areas")
 	end
-})
 
+	if not areas:isAreaOwner(id, name) then
+		return false, S("Area @1 does not exist or is"
+				.." not owned by you.", id)
+	end
 
-minetest.register_chatcommand("recursive_remove_areas", {
+	areas:remove(id, true)
+	areas:save()
+	return true, S("Removed area @1 and its sub areas.", id)
+end
+
+chatCommandParams = {
 	params = S("<ID>"),
 	description = S("Recursively remove areas using an ID"),
-	func = function(name, param)
-		local id = tonumber(param)
-		if not id then
-			return false, S("Invalid usage, see"
-					.." /help @1.", "recursive_remove_areas")
-		end
+	func = recursiveRemoveAreas
+}
 
-		if not areas:isAreaOwner(id, name) then
-			return false, S("Area @1 does not exist or is"
-					.." not owned by you.", id)
-		end
+minetest.register_chatcommand("recursive_remove_areas", chatCommandParams)
+minetest.register_chatcommand("remove_areas_recursive", chatCommandParams)
+minetest.register_chatcommand("areas_remove_recursive", chatCommandParams)
 
-		areas:remove(id, true)
-		areas:save()
-		return true, S("Removed area @1 and it's sub areas.", id)
+local function removeArea(name, param)
+	local id = tonumber(param)
+	if not id then
+		return false, S("Invalid usage, see /help @1.", "remove_area")
 	end
-})
 
+	if not areas:isAreaOwner(id, name) then
+		return false, S("Area @1 does not exist or"
+				.." is not owned by you.", id)
+	end
 
-minetest.register_chatcommand("remove_area", {
+	areas:remove(id)
+	areas:save()
+	return true, S("Removed area @1", id)
+end
+
+chatCommandParams = {
 	params = S("<ID>"),
 	description = S("Remove an area using an ID"),
-	func = function(name, param)
-		local id = tonumber(param)
-		if not id then
-			return false, S("Invalid usage, see /help @1.", "remove_area")
-		end
+	func = removeArea
+}
 
-		if not areas:isAreaOwner(id, name) then
-			return false, S("Area @1 does not exist or"
-					.." is not owned by you.", id)
-		end
-
-		areas:remove(id)
-		areas:save()
-		return true, S("Removed area @1", id)
-	end
-})
+minetest.register_chatcommand("remove_area", chatCommandParams)
+minetest.register_chatcommand("area_remove", chatCommandParams)
 
 
 minetest.register_chatcommand("change_owner", {
@@ -262,27 +307,56 @@ minetest.register_chatcommand("change_owner", {
 	end
 })
 
+local function areaOpen(name, param)
+	local id = tonumber(param)
+	if not id then
+		return false, S("Invalid usage, see /help @1.", "area_open")
+	end
 
-minetest.register_chatcommand("area_open", {
+	if not areas:isAreaOwner(id, name) then
+		return false, S("Area @1 does not exist"
+				.." or is not owned by you.", id)
+	end
+	local open = not areas.areas[id].open
+	-- Save false as nil to avoid inflating the DB.
+	areas.areas[id].open = open or nil
+	areas:save()
+	return true, open and S("Area opened.") or S("Area closed.")
+end
+
+chatCommandParams = {
 	params = S("<ID>"),
 	description = S("Toggle an area open (anyone can interact) or closed"),
-	func = function(name, param)
-		local id = tonumber(param)
-		if not id then
-			return false, S("Invalid usage, see /help @1.", "area_open")
-		end
+	func = areaOpen
+}
 
-		if not areas:isAreaOwner(id, name) then
-			return false, S("Area @1 does not exist"
-					.." or is not owned by you.", id)
-		end
-		local open = not areas.areas[id].open
-		-- Save false as nil to avoid inflating the DB.
-		areas.areas[id].open = open or nil
-		areas:save()
-		return true, open and S("Area opened.") or S("Area closed.")
+minetest.register_chatcommand("area_open", chatCommandParams)
+minetest.register_chatcommand("open_area", chatCommandParams)
+
+local function areaClose(name, param)
+	local id = tonumber(param)
+	if not id then
+		return false, S("Invalid usage, see /help @1.", "area_open")
 	end
-})
+
+	if not areas:isAreaOwner(id, name) then
+		return false, S("Area @1 does not exist"
+				.." or is not owned by you.", id)
+	end
+	local open = not areas.areas[id].open
+	-- Save false as nil to avoid inflating the DB.
+	areas.areas[id].open = false
+	areas:save()
+	return ("Area closed.")
+end
+
+chatCommandParams = {
+	description = S("Make an area closed (not open)."),
+	func = areaClose
+}
+
+minetest.register_chatcommand("area_close", chatCommandParams)
+minetest.register_chatcommand("close_area", chatCommandParams)
 
 
 if areas.factions_available then
@@ -309,33 +383,37 @@ if areas.factions_available then
 	})
 end
 
+local function moveArea(name, param)
+	local id = tonumber(param)
+	if not id then
+		return false, S("Invalid usage, see /help @1.", "move_area")
+	end
 
-minetest.register_chatcommand("move_area", {
+	local area = areas.areas[id]
+	if not area then
+		return false, S("Area does not exist.")
+	end
+
+	local pos1, pos2 = areas:getPos(name)
+	if not pos1 then
+		return false, S("You need to select an area first.")
+	end
+
+	areas:move(id, area, pos1, pos2)
+	areas:save()
+
+	return true, S("Area successfully moved.")
+end
+
+chatCommandParams = {
 	params = S("<ID>"),
 	description = S("Move (or resize) an area to the current positions."),
 	privs = areas.adminPrivs,
-	func = function(name, param)
-		local id = tonumber(param)
-		if not id then
-			return false, S("Invalid usage, see /help @1.", "move_area")
-		end
+	func = moveArea,
+}
 
-		local area = areas.areas[id]
-		if not area then
-			return false, S("Area does not exist.")
-		end
-
-		local pos1, pos2 = areas:getPos(name)
-		if not pos1 then
-			return false, S("You need to select an area first.")
-		end
-
-		areas:move(id, area, pos1, pos2)
-		areas:save()
-
-		return true, S("Area successfully moved.")
-	end,
-})
+minetest.register_chatcommand("move_area", chatCommandParams)
+minetest.register_chatcommand("area_move", chatCommandParams)
 
 
 minetest.register_chatcommand("area_info", {

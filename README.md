@@ -45,15 +45,13 @@ For example: `/set_owner SomePlayer Mese city`
 3) You now own an area. You may now add sub-owners to it if you want to (see command `/add_owner`). Before using the `/add_owner` command you have to
 select the corners of the sub-area as you did in step 1.
 
-If your markers are still around your original area and you want to grant
-access to your entire area you will not have to re-set them. Use `/select_area` to place the markers at the corners of an existing area if you've reset your
-markers and want to grant access to a full area.
+If you want to add access to just a sub-area of the area, you can select a smaller area inside it. If you want to add access to the whole area, no selection is necessary; `/add_owner` will grant access to the whole area if you have no selection.
 
 The `/add_owner` command expects three arguments:
   1. The ID number of the parent area (the area that you want to add a
 	sub-area to).
   2. The name of the player that will own the sub-area.
-  3. The name of the sub-area. (can contain spaces)
+  3. The name of the sub-area (can contain spaces) - this is optional, if it is not included the existing area has its name re-used.
 
 For example: `/add_owner 123 BobTheBuilder Diamond lighthouse`
 
@@ -75,7 +73,7 @@ Commands
   * `/list_areas` -- Lists all of the areas that you own, or all areas if you
 	have the `areas` privilege.
 
-  * `/find_areas <Regex>` -- Finds areas using a Lua regular expresion.
+  * `/find_areas <Regex>` -- Finds areas using a Lua pattern.
 	For example, to find castles:
 
 		/find_areas [Cc]astle
@@ -101,6 +99,8 @@ Commands
 
   * `/area_pos2 [X,Y,Z|X Y Z]` -- Sets area position two to your position or
 	the one supplied.
+
+There are also aliases so that the word order is not important; `/add_owner` is the same as `/owner_add` for example.
 
 License
 -------
