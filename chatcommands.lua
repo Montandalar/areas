@@ -204,12 +204,52 @@ minetest.register_chatcommand("find_area", chatCommandParams)
 minetest.register_chatcommand("areas_find", chatCommandParams)
 minetest.register_chatcommand("area_find", chatCommandParams)
 
-local function listAreas (name, param)
+local function listAreasOfPlayer(name, param)
+	if areas:player_exists(param) then
+		local areaStrings = {}
+		for id, area in pairs(areas.areas) do
+			if area.owner == param then
+				table.insert(areaStrings, areas:toString(id))
+			end
+		end
+		return true, table.concat(areaStrings, "\n")
+	else
+		return false, S("No such player.")
+	end
+end
+
+local function listAreas(name, param)
 	local admin = minetest.check_player_privs(name, areas.adminPrivs)
 	local areaStrings = {}
-	for id, area in pairs(areas.areas) do
-		if admin or areas:isAreaOwner(id, name) then
-			table.insert(areaStrings, areas:toString(id))
+	if param ~= "" and admin then
+		local intParam = tonumber(param)
+		if intParam then
+			if not areas.areas[intParam] then
+				return false, S("Area does not exist.")
+			end
+			return true, areas:toString(intParam)
+		end
+		local start, fin = param:match("(%d+)-(%d+)")
+		if not (start and fin) then
+			if areas:player_exists(param) then
+				return listAreasOfPlayer(name, param)
+			else 
+				return false, S("Invalid argument. See /help @1 (args: @2, @3 \"@4\")",
+					"list_areas", tostring(start), tostring(fin), param)
+			end
+		else
+			for i=start,fin do
+				if (areas.areas[i]) then
+					table.insert(areaStrings, areas:toString(i))
+				end
+			end
+		end
+	end
+	if next(areaStrings) == nil then -- empty table
+		for id, area in pairs(areas.areas) do
+			if admin or areas:isAreaOwner(id, name) then
+				table.insert(areaStrings, areas:toString(id))
+			end
 		end
 	end
 	if #areaStrings == 0 then
@@ -219,12 +259,23 @@ local function listAreas (name, param)
 end
 
 chatCommandParams = {
-	description = S("List your areas, or all areas if you are an admin."),
+	params = '[ "" | id | range | player_name ]',
+	description = S("List your areas, or all areas if you are an admin."
+		.." Admins may also specify a specify a specific ID, range of ids or player name."),
 	func = listAreas
 }
 
 minetest.register_chatcommand("list_areas", chatCommandParams)
 minetest.register_chatcommand("areas_list", chatCommandParams)
+
+chatCommandParams = {
+	privs = areas.adminPrivs,
+	params = "<player>",
+	description = S("List the areas owned by a player. Only available to admins, otherwise for your areas use /list_areas."),
+	func = listAreasOfPlayer
+}
+
+minetest.register_chatcommand("list_areas_player", chatCommandParams)
 
 local function recursiveRemoveAreas (name, param)
 	local id = tonumber(param)

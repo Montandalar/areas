@@ -58,12 +58,10 @@ For example: `/add_owner 123 BobTheBuilder Diamond lighthouse`
 
 Commands
 --------
+There are also aliases for most commands so that the word order is not important; `/add_owner` is the same as `/owner_add` for example.
 
   * `/protect <AreaName>` -- Protects an area for yourself. (if
 	self-protection is enabled)
-
-  * `/set_owner <OwnerName> <AreaName>` -- Protects an area for a specified
-	player. (requires the `areas` privilege)
 
   * `/add_owner <ParentID> <OwnerName> <ChildName>` -- Grants another player
 	control over part (or all) of an area.
@@ -71,12 +69,7 @@ Commands
   * `/rename_area <ID> <NewName>` -- Renames an existing area.
 
   * `/list_areas` -- Lists all of the areas that you own, or all areas if you
-	have the `areas` privilege.
-
-  * `/find_areas <Regex>` -- Finds areas using a Lua pattern.
-	For example, to find castles:
-
-		/find_areas [Cc]astle
+	have the `areas` privilege. Admins may also specify a specify a specific ID, range of ids or any player name.
 
   * `/remove_area <ID>` -- Removes an area that you own. Any sub-areas of that
 	area are made sub-areas of the removed area's parent, if it exists.
@@ -100,7 +93,21 @@ Commands
   * `/area_pos2 [X,Y,Z|X Y Z]` -- Sets area position two to your position or
 	the one supplied.
 
-There are also aliases so that the word order is not important; `/add_owner` is the same as `/owner_add` for example.
+### Admin-only Commands
+
+Apart from overriding all restrictions about ownership, admins also have some exclusive commands:
+
+  * `/find_areas <Regex>` -- Finds areas using a Lua pattern.
+	For example, to find castles:
+
+		/find_areas [Cc]astle
+
+  * `/list_areas_player` -- Lists the areas owned by a player. Only available to admins, otherwise for your areas use /list_areas.
+
+  * `/move_area` -- Move (or resize) an area to the current positions.
+
+  * `/set_owner <OwnerName> <AreaName>` -- Protects an area for a specified
+	player. (requires the `areas` privilege)
 
 License
 -------
